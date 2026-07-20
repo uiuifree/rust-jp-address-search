@@ -94,7 +94,13 @@ fn parse_town(raw: &str, is_street_no: &str) -> (String, String) {
         if appendable {
             street.push_str(paren);
         } else {
-            note = paren.trim_end_matches('）').to_string();
+            // 「その他」は補足として無意味なため読点区切りで除去する
+            note = paren
+                .trim_end_matches('）')
+                .split('、')
+                .filter(|segment| *segment != "その他")
+                .collect::<Vec<_>>()
+                .join("、");
         }
     }
 

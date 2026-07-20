@@ -326,4 +326,60 @@ mod tests {
         assert!(addresses.iter().all(|address| address.city_id == 13101));
         assert!(AddressSearch::find_addresses_by_city_id(0).is_empty());
     }
+
+    // --- データ不変条件 ---
+
+    #[test]
+    fn test_all_zip_are_seven_digits() {
+        for address in AddressSearch::addresses() {
+            assert!(
+                address.zip.len() == 7 && address.zip.bytes().all(|b| b.is_ascii_digit()),
+                "郵便番号が7桁数字ではありません: {:?}",
+                address
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_prefecture_id_in_range() {
+        for address in AddressSearch::addresses() {
+            assert!(
+                (1..=47).contains(&address.prefecture_id),
+                "都道府県コードが範囲外です: {:?}",
+                address
+            );
+            // 市区町村コードの上2桁は都道府県コードと一致する
+            assert_eq!(
+                address.city_id / 1000,
+                address.prefecture_id,
+                "{:?}",
+                address
+            );
+        }
+    }
+
+    /// 全住所の市区町村コードが市区町村マスタに存在すること(モジュール間の整合)
+    #[test]
+    fn test_every_address_city_exists_in_master() {
+        for address in AddressSearch::addresses() {
+            let city = AddressSearch::find_city_by_id(address.city_id)
+                .unwrap_or_else(|| panic!("市区町村マスタにないコード: {:?}", address));
+            assert_eq!(city.prefecture_id, address.prefecture_id);
+        }
+    }
+
+    /// 補足表記から「その他」が除去されていること(生成ロジックの回帰)
+    #[test]
+    fn test_town_note_has_no_sonota() {
+        assert!(
+            AddressSearch::addresses()
+                .iter()
+                .all(|address| !address.town_note.contains("その他")),
+            "town_noteに「その他」が残っています"
+        );
+        // 「その他」を含む列挙は他の要素のみ残す(豊橋市高師町: 原文「北原、その他」)
+        let addresses = AddressSearch::find_by_zipcode("4400845");
+        assert_eq!(addresses[0].town, "高師町");
+        assert_eq!(addresses[0].town_note, "北原");
+    }
 }

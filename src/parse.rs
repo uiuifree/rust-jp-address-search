@@ -290,6 +290,28 @@ mod tests {
         assert_eq!(matched.address.unwrap().zip, "0600042");
     }
 
+    /// 丁目が読点区切りで列挙される補足表記(例: `1、2丁目`)でも特定できること
+    #[test]
+    fn test_chome_enumeration() {
+        // 帯広市自由が丘: 1、2丁目=0800848、3〜7丁目=0802476
+        let matched = AddressSearch::parse_address("北海道帯広市自由が丘1丁目");
+        assert_eq!(matched.address.unwrap().zip, "0800848");
+
+        let matched = AddressSearch::parse_address("北海道帯広市自由が丘2丁目");
+        assert_eq!(matched.address.unwrap().zip, "0800848");
+
+        // 範囲表記側にも正しく振り分けられる
+        let matched = AddressSearch::parse_address("北海道帯広市自由が丘5丁目");
+        assert_eq!(matched.address.unwrap().zip, "0802476");
+    }
+
+    /// 全角丁目・号や番地が続いても丁目部分だけを解釈できること
+    #[test]
+    fn test_chome_with_trailing_banchi() {
+        let matched = AddressSearch::parse_address("北海道札幌市中央区大通西20丁目3番地4号");
+        assert_eq!(matched.address.unwrap().zip, "0640820");
+    }
+
     #[test]
     fn test_unlisted_street_falls_back_to_default_zip() {
         // 町域が一覧にない場合は「以下に掲載がない場合」の郵便番号
