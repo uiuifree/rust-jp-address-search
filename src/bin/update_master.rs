@@ -1,101 +1,100 @@
-extern crate core;
+//! 総務省「全国地方公共団体コード」のExcelから `src/data/cities.tsv` を生成する。
+//!
+//! 入力: `./storage/code.xlsx`
+//! (https://www.soumu.go.jp/denshijiti/code.html の「都道府県コード及び市区町村コード」)
+//! 実行: `cargo run --features generate --bin update_master`
 
 use calamine::{open_workbook, DataType, Reader, Xlsx};
 use csv::WriterBuilder;
-use jp_address_search::city::City;
+use std::collections::HashSet;
+
+struct CityRecord {
+    prefecture_id: i32,
+    id: i32,
+    designated_city_id: i32,
+    name: String,
+}
+
 fn main() {
-    let mut excel: Xlsx<_> = open_workbook("./storage/000730858.xlsx").unwrap();
+    let mut excel: Xlsx<_> =
+        open_workbook("./storage/code.xlsx").expect("storage/code.xlsxを開けません");
+    // シート名には更新日が含まれる(例: `R6.1.1政令指定都市`)ため部分一致で探す
+    let sheet_names = excel.sheet_names().to_owned();
+    let major_city_sheet = sheet_names
+        .iter()
+        .find(|name| name.contains("政令指定都市"))
+        .expect("「政令指定都市」シートが見つかりません")
+        .clone();
+    let city_sheet = sheet_names
+        .iter()
+        .find(|name| name.contains("現在の団体"))
+        .expect("「現在の団体」シートが見つかりません")
+        .clone();
+
     let mut cities = vec![];
-    let mut ignore_city = vec![];
-    let mut add_id = vec![];
-    if let Some(Ok(r)) = excel.worksheet_range("H30.10.1政令指定都市") {
-        let mut is_header = true;
-        let mut major_city_id = 0;
-        for row in r.rows() {
-            if is_header {
-                is_header = false;
+    let mut seen_ids = HashSet::new();
+
+    // 政令指定都市とその行政区。市の行を親として、続く区の行にdesignated_city_idを付与する
+    if let Some(Ok(range)) = excel.worksheet_range(&major_city_sheet) {
+        let mut designated_city_id = 0;
+        for row in range.rows().skip(1) {
+            let Some(mut city) = row_to_city(row) else {
                 continue;
+            };
+            if city.name.ends_with('市') {
+                designated_city_id = city.id;
             }
-            let city = row_to_city(row);
-            if city.is_none() {
-                continue;
-            }
-            let mut city = city.unwrap();
-            if city.name.ends_with("市") {
-                major_city_id = city.id;
-                // ignore_city.push(city.name);
-                // continue;
-            }
-            city.major_city_id = major_city_id;
-            add_id.push(city.id);
+            city.designated_city_id = designated_city_id;
+            seen_ids.insert(city.id);
             cities.push(city);
         }
     }
-    if let Some(Ok(r)) = excel.worksheet_range("R1.5.1現在の団体") {
-        let mut is_header = true;
-        for row in r.rows() {
-            if is_header {
-                is_header = false;
+
+    if let Some(Ok(range)) = excel.worksheet_range(&city_sheet) {
+        for row in range.rows().skip(1) {
+            let Some(city) = row_to_city(row) else {
+                continue;
+            };
+            if !seen_ids.insert(city.id) {
                 continue;
             }
-            let city = row_to_city(row);
-            if city.is_none() {
-                continue;
-            }
-            let city = city.unwrap();
-            if ignore_city.contains(&city.name) {
-                continue;
-            }
-            if add_id.contains(&city.id) {
-                continue;
-            }
-            add_id.push(city.id);
             cities.push(city);
         }
     }
-    // println!("{:?}",vec);
-    let mut wtr = WriterBuilder::new()
+
+    cities.sort_by_key(|city| city.id);
+    let mut writer = WriterBuilder::new()
         .delimiter(b'\t')
         .from_path("src/data/cities.tsv")
-        .expect("error write csv");
-
-    // let mut wtr = ;
-    cities.sort_by(|a, b| a.id.cmp(&b.id));
+        .expect("cities.tsvを開けません");
     for city in cities {
-        println!(
-            "{} {} {} {}",
-            city.prefecture_id, city.id, city.major_city_id, city.name
-        );
-        wtr.write_record(&[
-            city.prefecture_id.to_string(),
-            city.id.to_string(),
-            city.major_city_id.to_string(),
-            city.name,
-        ])
-        .expect("error write csv");
+        writer
+            .write_record(&[
+                city.prefecture_id.to_string(),
+                city.id.to_string(),
+                city.designated_city_id.to_string(),
+                city.name,
+            ])
+            .expect("cities.tsvを書き込めません");
     }
-    wtr.flush().expect("flush");
+    writer.flush().expect("cities.tsvを書き込めません");
 }
-fn row_to_city(row: &[DataType]) -> Option<City> {
-    let mut prefecture_id = "".to_string();
-    for str in row[0].to_string().as_str().chars() {
-        prefecture_id = format!("{}{}", prefecture_id, str.to_string());
-        if 2 <= prefecture_id.chars().count() {
-            break;
-        }
-    }
-    let prefecture_id: i32 = prefecture_id.parse().unwrap();
-    let city_id: i32 = row[0].to_string().parse().unwrap();
-    let city_id: i32 = city_id / 10;
-    let city_name = row[2].to_string();
-    if city_name.is_empty() {
+
+fn row_to_city(row: &[DataType]) -> Option<CityRecord> {
+    let name = row[2].to_string();
+    if name.is_empty() {
         return None;
     }
-
-    Some(City {
-        id: city_id,
-        prefecture_id,
-        major_city_id: 0,
-        name: city_name,
+    // 1列目は6桁の団体コード(5桁のJISコード+検査数字1桁)
+    let code: i32 = row[0]
+        .to_string()
+        .parse()
+        .expect("団体コードが数値ではありません");
+    let id = code / 10;
+    Some(CityRecord {
+        prefecture_id: id / 1000,
+        id,
+        designated_city_id: 0,
+        name,
     })
 }

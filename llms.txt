@@ -1,0 +1,89 @@
+# jp-address-search
+
+> Rust library for Japanese address search: postal code (zipcode) to address
+> lookup, prefecture and municipality master data. All data is embedded at
+> compile time — zero runtime dependencies, no I/O, no external API.
+> 日本の郵便番号検索・住所検索を行うRustライブラリ。データ同梱・依存ゼロ。
+
+## Install
+
+```toml
+[dependencies]
+jp-address-search = "0.2"
+```
+
+## API
+
+All searches go through the `AddressSearch` entry point
+(`use jp_address_search::AddressSearch;`). Return values reference embedded
+`'static` data; lookups never allocate.
+
+- `AddressSearch::find_by_zipcode(zipcode: &str) -> &'static [&'static Address]`
+  — postal code → addresses. Non-digit characters are ignored ("100-0001" ==
+  "1000001"). Input must contain exactly 7 digits, otherwise returns empty.
+  One zipcode can map to multiple towns (returns all). ~6ns per lookup.
+- `AddressSearch::parse_address(address: &str) -> AddressMatch`
+  — parse a free-form address string ("東京都世田谷区太子堂4丁目1-1") by
+  longest-prefix matching: prefecture (optional) → city (county name 郡
+  optional) → town. Returns `AddressMatch { prefecture: Option<&Prefecture>,
+  city: Option<&City>, address: Option<&Address> }` with whichever levels were
+  identified. Tolerates whitespace, full-width digits, 大字, and ヶ/ケ/が
+  variants. When one town is split into multiple zipcodes by block (丁目),
+  the leading number after the town name is matched against each entry's
+  `town_note` range (e.g. 大通西25丁目 → 0640820 "20〜28丁目"). Lot numbers
+  (番地) are not parsed. Unlisted towns fall back to the city's catch-all
+  zipcode entry.
+- `AddressSearch::find_addresses_by_city_id(city_id: i32) -> &'static [Address]`
+- `AddressSearch::addresses() -> &'static [Address]` — all entries, city-code order.
+- `AddressSearch::prefectures() -> &'static [Prefecture]` — all 47, code order.
+- `AddressSearch::find_prefecture_by_id(id: i32) -> Option<&'static Prefecture>`
+- `AddressSearch::find_prefecture_by_name(name: &str) -> Option<&'static Prefecture>`
+  — matches full name ("東京都"), not short name ("東京").
+- `AddressSearch::cities() -> &'static [City]` — all municipalities, code order.
+- `AddressSearch::find_city_by_id(id: i32) -> Option<&'static City>`
+- `AddressSearch::find_city_by_name(name: &str) -> Option<&'static City>`
+  — identical city names exist in different prefectures (e.g. 府中市 is in
+  both Tokyo 13206 and Hiroshima 34208); the one with the smallest code is
+  returned. To disambiguate, filter `find_cities_by_prefecture_id` by name.
+- `AddressSearch::find_cities_by_prefecture_id(prefecture_id: i32) -> &'static [City]`
+- `AddressSearch::preload()` — optional warm-up; data otherwise loads lazily
+  on first access (~10ms).
+
+## Data types (plain structs, public fields)
+
+- `Prefecture { id: i32, name, short_name, en_name: &'static str }`
+  — JIS X 0401 code (1-47), "東京都" / "東京" / "tokyo".
+- `City { id: i32, prefecture_id: i32, designated_city_id: i32, name: &'static str }`
+  — JIS X 0402 5-digit code. `designated_city_id` is the parent city code for
+  designated-city wards (e.g. 堺市堺区 27141 → 堺市 27140), 0 otherwise.
+- `Address { zip: &'static str, prefecture_id, city_id: i32, prefecture_name,
+  city_name, town, town_note: &'static str }` — `zip` is 7 digits
+  without hyphen. `town` is town-level (町域), empty when the town
+  cannot be determined. `town_note` holds the KEN_ALL parenthetical detail
+  (block/lot ranges like "1〜19丁目", building floors), empty otherwise.
+
+## Example
+
+```rust
+use jp_address_search::AddressSearch;
+
+let addresses = AddressSearch::find_by_zipcode("154-0004");
+assert_eq!(addresses[0].prefecture_name, "東京都");
+assert_eq!(addresses[0].city_name, "世田谷区");
+assert_eq!(addresses[0].town, "太子堂");
+```
+
+## Data sources
+
+- Postal codes: Japan Post "KEN_ALL" (utf_ken_all.csv, one record per line).
+- Municipalities: Ministry of Internal Affairs "全国地方公共団体コード".
+- Regenerate embedded TSVs with
+  `cargo run --features generate --bin update_address` /
+  `cargo run --features generate --bin update_master`
+  after placing source files under `storage/` (see README).
+
+## Links
+
+- Repository: https://github.com/uiuifree/rust-jp-address-search
+- API docs: https://docs.rs/jp-address-search
+- Crate: https://crates.io/crates/jp-address-search

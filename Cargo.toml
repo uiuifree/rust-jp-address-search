@@ -1,12 +1,27 @@
 [package]
 name = "jp-address-search"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+rust-version = "1.80"
+description = "Fast, zero-dependency Japanese address search by postal code (zipcode), prefecture, and city. 日本の郵便番号・都道府県・市区町村の住所検索ライブラリ"
+license = "MIT"
+repository = "https://github.com/uiuifree/rust-jp-address-search"
+readme = "README.md"
+keywords = ["japan", "address", "zipcode", "postal-code", "japanese"]
+categories = ["localization"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+# データ生成用バイナリ(update_master / update_address)を有効にする
+generate = ["dep:calamine", "dep:csv"]
 
 [dependencies]
-lazy_static="1.4"
-calamine="0.21"
-csv = "1"
+calamine = { version = "0.21", optional = true }
+csv = { version = "1", optional = true }
 
+[[bin]]
+name = "update_master"
+required-features = ["generate"]
+
+[[bin]]
+name = "update_address"
+required-features = ["generate"]
