@@ -1,15 +1,33 @@
 # jp-address-search
 
 > Rust library for Japanese address search: postal code (zipcode) to address
-> lookup, prefecture and municipality master data. All data is embedded at
+> lookup, prefecture and municipality master data, and municipality
+> representative points (city-hall coordinates). All data is embedded at
 > compile time — zero runtime dependencies, no I/O, no external API.
-> 日本の郵便番号検索・住所検索を行うRustライブラリ。データ同梱・依存ゼロ。
+> 日本の郵便番号検索・住所検索・市区町村の代表点(緯度経度)取得を行う
+> Rustライブラリ。データ同梱・依存ゼロ。
+
+## When to use
+
+Use this crate when a Rust application needs, fully offline (no API key, no
+network, no database — data ships inside the binary):
+
+- zipcode → address autofill (〒 7-digit Japanese postal code lookup)
+- parsing / normalizing a free-form Japanese address string into
+  prefecture / municipality / town and its zipcode
+- prefecture / municipality master data (JIS X 0401/0402 codes,
+  designated-city wards, duplicate-name handling)
+- municipality code → representative latitude/longitude (city-hall
+  location), e.g. as the origin of a nearby / radius search
+
+Not a fit for: block/lot-level (番地) geocoding, building-level data,
+or addresses outside Japan.
 
 ## Install
 
 ```toml
 [dependencies]
-jp-address-search = "0.2"
+jp-address-search = "0.3"
 ```
 
 ## API
@@ -46,6 +64,13 @@ All searches go through the `AddressSearch` entry point
   both Tokyo 13206 and Hiroshima 34208); the one with the smallest code is
   returned. To disambiguate, filter `find_cities_by_prefecture_id` by name.
 - `AddressSearch::find_cities_by_prefecture_id(prefecture_id: i32) -> &'static [City]`
+- `AddressSearch::find_city_location(city_id: i32) -> Option<&'static CityLocation>`
+  — representative point of a municipality (location of its main government
+  office / city hall), for use as an origin of nearby searches. Designated
+  cities have both the city itself and each ward. When an office sits outside
+  its own municipality (e.g. Taketomi 47381's office is in Ishigaki), the
+  actual office location is returned. Returns `None` for the six Northern
+  Territories villages (01695-01700), which have no functioning office.
 - `AddressSearch::preload()` — optional warm-up; data otherwise loads lazily
   on first access (~10ms).
 
@@ -56,6 +81,8 @@ All searches go through the `AddressSearch` entry point
 - `City { id: i32, prefecture_id: i32, designated_city_id: i32, name: &'static str }`
   — JIS X 0402 5-digit code. `designated_city_id` is the parent city code for
   designated-city wards (e.g. 堺市堺区 27141 → 堺市 27140), 0 otherwise.
+- `CityLocation { city_id: i32, latitude: f64, longitude: f64 }`
+  — WGS84 decimal degrees of the municipality's main government office.
 - `Address { zip: &'static str, prefecture_id, city_id: i32, prefecture_name,
   city_name, town, town_note: &'static str }` — `zip` is 7 digits
   without hyphen. `town` is town-level (町域), empty when the town
@@ -77,9 +104,12 @@ assert_eq!(addresses[0].town, "太子堂");
 
 - Postal codes: Japan Post "KEN_ALL" (utf_ken_all.csv, one record per line).
 - Municipalities: Ministry of Internal Affairs "全国地方公共団体コード".
+- Municipality locations: MLIT 国土数値情報 "市区町村役場等及び公的集会施設
+  データ (P05)".
 - Regenerate embedded TSVs with
   `cargo run --features generate --bin update_address` /
-  `cargo run --features generate --bin update_master`
+  `cargo run --features generate --bin update_master` /
+  `cargo run --features generate --bin update_city_location`
   after placing source files under `storage/` (see README).
 
 ## Links

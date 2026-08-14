@@ -1,14 +1,14 @@
 [package]
 name = "jp-address-search"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.80"
-description = "Fast, zero-dependency Japanese address search by postal code (zipcode), prefecture, and city. 日本の郵便番号・都道府県・市区町村の住所検索ライブラリ"
+description = "Fast, zero-dependency Japanese address search: postal code (zipcode) to address, prefecture and city master data, and municipality latitude/longitude. 日本の郵便番号・住所検索・市区町村の緯度経度取得ライブラリ"
 license = "MIT"
 repository = "https://github.com/uiuifree/rust-jp-address-search"
 readme = "README.md"
-keywords = ["japan", "address", "zipcode", "postal-code", "japanese"]
-categories = ["localization"]
+keywords = ["japan", "address", "zipcode", "geocoding", "postal-code"]
+categories = ["localization", "science::geo"]
 
 [features]
 # データ生成用バイナリ(update_master / update_address)を有効にする
@@ -24,4 +24,8 @@ required-features = ["generate"]
 
 [[bin]]
 name = "update_address"
+required-features = ["generate"]
+
+[[bin]]
+name = "update_city_location"
 required-features = ["generate"]

@@ -17,6 +17,8 @@
 //!
 //! - [`Prefecture`][] — 都道府県マスタ(47件)
 //! - [`City`][] — 市区町村マスタ(総務省「全国地方公共団体コード」由来)
+//! - [`CityLocation`][] — 市区町村の代表点(国土数値情報
+//!   「市区町村役場等及び公的集会施設データ」由来)
 //! - [`Address`][] — 郵便番号住所データ(日本郵便「KEN_ALL」由来)
 //!
 //! # 使用例
@@ -44,11 +46,13 @@
 
 mod address;
 mod city;
+mod city_location;
 mod parse;
 mod prefecture;
 
 pub use address::Address;
 pub use city::City;
+pub use city_location::CityLocation;
 pub use parse::AddressMatch;
 pub use prefecture::Prefecture;
 
@@ -74,6 +78,7 @@ impl AddressSearch {
     pub fn preload() {
         let _ = prefecture::all();
         let _ = city::all();
+        let _ = city_location::all();
         address::preload();
     }
 
@@ -95,6 +100,7 @@ impl AddressSearch {
     /// // 数字が7桁でない入力は空を返す
     /// assert!(AddressSearch::find_by_zipcode("100-001").is_empty());
     /// ```
+    #[doc(alias("郵便番号", "postal_code"))]
     pub fn find_by_zipcode(zipcode: &str) -> &'static [&'static Address] {
         address::find_by_zipcode(zipcode)
     }
@@ -266,5 +272,29 @@ impl AddressSearch {
     /// ```
     pub fn find_cities_by_prefecture_id(prefecture_id: i32) -> &'static [City] {
         city::find_by_prefecture_id(prefecture_id)
+    }
+
+    /// 市区町村コードで代表点(本庁舎の位置)を検索する。
+    ///
+    /// 座標は国土数値情報「市区町村役場等及び公的集会施設データ」(国土交通省)由来の
+    /// 世界測地系の10進度。役場が自治体の外にある場合(竹富町役場は石垣市など)も
+    /// 役場の実際の所在地を返す。役場が実在しない北方領土の6村
+    /// (色丹村・泊村・留夜別村・留別村・紗那村・蘂取村)は`None`を返す。
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use jp_address_search::AddressSearch;
+    ///
+    /// // 渋谷区 → 渋谷区役所の位置
+    /// let location = AddressSearch::find_city_location(13113).unwrap();
+    /// assert!((location.latitude - 35.664).abs() < 0.01);
+    /// assert!((location.longitude - 139.698).abs() < 0.01);
+    ///
+    /// assert!(AddressSearch::find_city_location(99999).is_none());
+    /// ```
+    #[doc(alias("緯度経度", "coordinates", "geocoding"))]
+    pub fn find_city_location(city_id: i32) -> Option<&'static CityLocation> {
+        city_location::find_by_city_id(city_id)
     }
 }
