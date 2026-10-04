@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # release.yml から公開前のテストとして呼び出す
+  workflow_call:
 
 jobs:
   test:

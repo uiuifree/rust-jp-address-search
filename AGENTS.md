@@ -62,3 +62,16 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps       # ドキュメント検証
 区再編)に追い付いていない場合や、本庁舎レコードの欠落・誤りがある場合は、
 `src/bin/update_city_location.rs` の補正テーブル(`MANUAL_LOCATIONS` / `OVERRIDES` /
 `OBSOLETE_CODES`)を実データを確認して更新する。
+
+## リリース手順
+
+crates.io への公開は `.github/workflows/release.yml` が行う(手元で `cargo publish` しない)。
+
+1. `Cargo.toml` の `version` と `CHANGELOG.md` を更新して main にマージする
+2. GitHub の Releases 画面で、main を対象に `v{version}` のタグ(例: `v0.3.1`)を作って
+   リリースを公開する(手元で `git tag` して push してもよい)
+3. タグと `version` の一致確認・CI が通ると、公開ジョブが Environment `release` の
+   承認待ちで止まる。Actions の画面で承認すると公開される
+
+認証は crates.io の Trusted Publishing(GitHub Actions の OIDC)で、トークンは置かない。
+crates.io 側にはワークフロー `release.yml` と Environment `release` を登録してある。
