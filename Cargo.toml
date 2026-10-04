@@ -1,6 +1,6 @@
 [package]
 name = "jp-address-search"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.80"
 description = "Fast, zero-dependency Japanese address search: postal code (zipcode) to address, prefecture and city master data, and municipality latitude/longitude. 日本の郵便番号・住所検索・市区町村の緯度経度取得ライブラリ"
@@ -11,11 +11,12 @@ keywords = ["japan", "address", "zipcode", "geocoding", "postal-code"]
 categories = ["localization", "science::geo"]
 
 [features]
-# データ生成用バイナリ(update_master / update_address)を有効にする
+# データ生成用バイナリ(update_master / update_address / update_city_location)を有効にする
+# Rust 1.88 以上が必要(ライブラリ本体は rust-version の 1.80 で動く)
 generate = ["dep:calamine", "dep:csv"]
 
 [dependencies]
-calamine = { version = "0.21", optional = true }
+calamine = { version = "0.36", optional = true }
 csv = { version = "1", optional = true }
 
 [[bin]]

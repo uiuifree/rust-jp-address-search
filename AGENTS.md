@@ -10,6 +10,8 @@ TSVでバイナリに埋め込み、`AddressSearch` に集約したAPIで検索�
 - ランタイム依存クレートゼロを維持すること(依存追加は原則不可)
 - 公開APIは `AddressSearch` に集約する(データ型に検索メソッドを生やさない)
 - 検索結果は `'static` 参照で返し、検索時のヒープ確保を避ける
+- `rust-version` は 1.80 に据え置く。`generate` feature(calamine 0.36 / encoding_rs)
+  だけは Rust 1.88 以上が必要だが、ライブラリ本体の利用者を切り捨てないため全体は上げない
 
 ## コマンド
 

@@ -4,7 +4,7 @@
 //! (https://www.soumu.go.jp/denshijiti/code.html の「都道府県コード及び市区町村コード」)
 //! 実行: `cargo run --features generate --bin update_master`
 
-use calamine::{open_workbook, DataType, Reader, Xlsx};
+use calamine::{open_workbook, Data, Reader, Xlsx};
 use csv::WriterBuilder;
 use std::collections::HashSet;
 
@@ -35,31 +35,33 @@ fn main() {
     let mut seen_ids = HashSet::new();
 
     // 政令指定都市とその行政区。市の行を親として、続く区の行にdesignated_city_idを付与する
-    if let Some(Ok(range)) = excel.worksheet_range(&major_city_sheet) {
-        let mut designated_city_id = 0;
-        for row in range.rows().skip(1) {
-            let Some(mut city) = row_to_city(row) else {
-                continue;
-            };
-            if city.name.ends_with('市') {
-                designated_city_id = city.id;
-            }
-            city.designated_city_id = designated_city_id;
-            seen_ids.insert(city.id);
-            cities.push(city);
+    let range = excel
+        .worksheet_range(&major_city_sheet)
+        .expect("「政令指定都市」シートを読み込めません");
+    let mut designated_city_id = 0;
+    for row in range.rows().skip(1) {
+        let Some(mut city) = row_to_city(row) else {
+            continue;
+        };
+        if city.name.ends_with('市') {
+            designated_city_id = city.id;
         }
+        city.designated_city_id = designated_city_id;
+        seen_ids.insert(city.id);
+        cities.push(city);
     }
 
-    if let Some(Ok(range)) = excel.worksheet_range(&city_sheet) {
-        for row in range.rows().skip(1) {
-            let Some(city) = row_to_city(row) else {
-                continue;
-            };
-            if !seen_ids.insert(city.id) {
-                continue;
-            }
-            cities.push(city);
+    let range = excel
+        .worksheet_range(&city_sheet)
+        .expect("「現在の団体」シートを読み込めません");
+    for row in range.rows().skip(1) {
+        let Some(city) = row_to_city(row) else {
+            continue;
+        };
+        if !seen_ids.insert(city.id) {
+            continue;
         }
+        cities.push(city);
     }
 
     cities.sort_by_key(|city| city.id);
@@ -80,7 +82,7 @@ fn main() {
     writer.flush().expect("cities.tsvを書き込めません");
 }
 
-fn row_to_city(row: &[DataType]) -> Option<CityRecord> {
+fn row_to_city(row: &[Data]) -> Option<CityRecord> {
     let name = row[2].to_string();
     if name.is_empty() {
         return None;

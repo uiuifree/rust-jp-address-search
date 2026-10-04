@@ -186,6 +186,7 @@ cargo run --release --example bench
 ## データの更新
 
 埋め込みデータ(`src/data/*.tsv`)は`generate` featureのバイナリで再生成できます。
+`generate` featureにはRust 1.88以上が必要です(ライブラリ本体は1.80以上で動きます)。
 
 ```sh
 # 市区町村マスタ: 「都道府県コード及び市区町村コード」のExcelを
